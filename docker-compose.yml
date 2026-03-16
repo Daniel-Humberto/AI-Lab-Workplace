@@ -1,0 +1,402 @@
+version: '3.8'
+services:
+
+  # =========================================
+  # N8N - Automation Engine
+  # =========================================
+  n8n:
+    image: n8nio/n8n:${N8N_VERSION}
+    container_name: ${N8N_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "${N8N_HOST_PORT}:${N8N_CONTAINER_PORT}"
+    environment:
+      GENERIC_TIMEZONE: ${TIMEZONE}
+      TZ: ${TIMEZONE}
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: ${POSTGRES_CONTAINER_NAME}
+      DB_POSTGRESDB_PORT: ${POSTGRES_PORT}
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_POSTGRESDB_SCHEMA: ${POSTGRES_SCHEMA}
+      N8N_DATABASE_LOGGING_ENABLED: ${N8N_DATABASE_LOGGING_ENABLED}
+      EXECUTIONS_DATA_PRUNE: ${N8N_EXECUTIONS_DATA_PRUNE}
+      EXECUTIONS_DATA_MAX_AGE: ${N8N_EXECUTIONS_DATA_MAX_AGE}
+      N8N_LOG_LEVEL: ${N8N_LOG_LEVEL}
+      N8N_DIAGNOSTICS_ENABLED: ${N8N_DIAGNOSTICS_ENABLED}
+      LLAMA_ENDPOINT: http://${OLLAMA_CONTAINER_NAME}:${OLLAMA_PORT}
+      LLAMA_MODEL: ${OLLAMA_MODEL}
+      OLLAMA_USE_GPU: ${OLLAMA_USE_GPU}
+      QDRANT_HOST: http://${QDRANT_CONTAINER_NAME}:${QDRANT_HTTP_PORT}
+      REDIS_HOST: ${REDIS_CONTAINER_NAME}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ./n8n-data:/home/node/.n8n
+      - ./n8n-data/pdfs:/pdfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${N8N_CONTAINER_PORT}/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # =========================================
+  # Open WebUI
+  # =========================================
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: ${OPEN_WEBUI_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "${OPEN_WEBUI_HOST_PORT}:${OPEN_WEBUI_CONTAINER_PORT}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: ${TIMEZONE}
+      LOG_LEVEL: ${OPEN_WEBUI_LOG_LEVEL}
+    volumes:
+      - ./open-webui-data:/app/backend/data
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${OPEN_WEBUI_CONTAINER_PORT}/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # =========================================
+  # Ollama - LLM Server (GPU)
+  # =========================================
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION}
+    container_name: ${OLLAMA_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:${OLLAMA_PORT}
+      OLLAMA_GPU_LAYERS: ${OLLAMA_GPU_LAYERS}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS}
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES}
+    volumes:
+      - ./ollama-data:/root/.ollama
+      - prometheus-data:/prometheus
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${OLLAMA_PORT}/api/tags"]
+      interval: 45s
+      timeout: 30s
+      retries: 5
+      start_period: 180s
+
+  # =========================================
+  # Qdrant - Vector DB (GPU)
+  # =========================================
+  qdrant:
+    image: qdrant/qdrant:${QDRANT_VERSION}
+    container_name: ${QDRANT_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      QDRANT__GPU__INDEXING: ${QDRANT_GPU_INDEXING}
+      QDRANT__SERVICE__HTTP_PORT: ${QDRANT_HTTP_PORT}
+      QDRANT__SERVICE__GRPC_PORT: ${QDRANT_GRPC_PORT}
+    ports:
+      - "${QDRANT_HOST_HTTP_PORT}:${QDRANT_HTTP_PORT}"
+      - "${QDRANT_HOST_GRPC_PORT}:${QDRANT_GRPC_PORT}"
+    volumes:
+      - ./qdrant-data:/qdrant/storage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${QDRANT_HTTP_PORT}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # =========================================
+  # Redis - Cache
+  # =========================================
+  redis:
+    image: redis:${REDIS_VERSION}
+    container_name: ${REDIS_CONTAINER_NAME}
+    restart: unless-stopped
+    volumes:
+      - ./redis-data:/data
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}", "--bind", "0.0.0.0"]
+    networks:
+      - agent-ai-network-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # =========================================
+  # RedisInsight - GUI
+  # =========================================
+  redisinsight:
+    image: redislabs/redisinsight:${REDIS_INSIGHT_VERSION}
+    container_name: ${REDIS_INSIGHT_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "${REDIS_INSIGHT_HOST_PORT}:${REDIS_INSIGHT_CONTAINER_PORT}"
+    volumes:
+      - ./redisinsight-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+
+  # =========================================
+  # Redis Exporter
+  # =========================================
+  redis-exporter:
+    image: oliver006/redis_exporter:${REDIS_EXPORTER_VERSION}
+    container_name: ${REDIS_EXPORTER_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://:${REDIS_PASSWORD}@${REDIS_CONTAINER_NAME}:${REDIS_PORT}
+      REDIS_EXPORTER_LOG_FORMAT: txt
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - agent-ai-network-internal
+
+  # =========================================
+  # PostgreSQL
+  # =========================================
+  postgres:
+    image: postgres:${POSTGRES_VERSION}
+    container_name: ${POSTGRES_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_ADDITIONAL_DBS}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    networks:
+      - agent-ai-network-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # =========================================
+  # pgAdmin
+  # =========================================
+  pgadmin:
+    image: dpage/pgadmin4:${PGADMIN_VERSION}
+    container_name: ${PGADMIN_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_PORT: ${PGADMIN_LISTEN_PORT}
+    ports:
+      - "${PGADMIN_HOST_PORT}:${PGADMIN_LISTEN_PORT}"
+    volumes:
+      - ./pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+
+  # =========================================
+  # Postgres Exporter
+  # =========================================
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:${POSTGRES_EXPORTER_VERSION}
+    container_name: ${POSTGRES_EXPORTER_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_CONTAINER_NAME}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - agent-ai-network-internal
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # =========================================
+  # Node Exporter
+  # =========================================
+  node-exporter:
+    image: prom/node-exporter:${NODE_EXPORTER_VERSION}
+    container_name: ${NODE_EXPORTER_CONTAINER_NAME}
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - agent-ai-network-internal
+
+  # =========================================
+  # cAdvisor
+  # =========================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION}
+    container_name: ${CADVISOR_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "${CADVISOR_HOST_PORT}:${CADVISOR_CONTAINER_PORT}"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+
+  # =========================================
+  # DCGM Exporter - GPU Metrics
+  # =========================================
+  dcgm-exporter:
+    image: nvidia/dcgm-exporter:${DCGM_EXPORTER_VERSION}
+    container_name: ${DCGM_EXPORTER_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      DCGM_EXPORTER_LISTEN: :${DCGM_EXPORTER_PORT}
+      DCGM_EXPORTER_KUBERNETES: ${DCGM_EXPORTER_KUBERNETES}
+      DCGM_EXPORTER_COLLECTORS: ${DCGM_EXPORTER_COLLECTORS}
+    volumes:
+      - ./dcgm-exporter-data:/tmp/dcgm-exporter
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    networks:
+      - agent-ai-network-internal
+
+  # =========================================
+  # Prometheus
+  # =========================================
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION}
+    container_name: ${PROMETHEUS_CONTAINER_NAME}
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_HOST_PORT}:${PROMETHEUS_CONTAINER_PORT}"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION}'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    depends_on:
+      cadvisor:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+      redis-exporter:
+        condition: service_started
+      postgres-exporter:
+        condition: service_healthy
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+
+  # =========================================
+  # Grafana
+  # =========================================
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION}
+    container_name: ${GRAFANA_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_HTTP_PORT: ${GRAFANA_CONTAINER_PORT}
+    ports:
+      - "${GRAFANA_HOST_PORT}:${GRAFANA_CONTAINER_PORT}"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - agent-ai-network-internal
+      - agent-ai-network-external
+
+# =========================================
+# Networks
+# =========================================
+networks:
+  agent-ai-network-internal:
+    driver: bridge
+    internal: true
+  agent-ai-network-external:
+    driver: bridge
+
+# =========================================
+# Volumes
+# =========================================
+volumes:
+  grafana-data:
+    driver: local
+  prometheus-data:
+    driver: local
