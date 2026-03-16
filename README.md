@@ -32,7 +32,7 @@ Orquestada a través de un único archivo declarativo `docker-compose.yml` y ges
 ## Architecture
  
 <p align="center">
-  <img src="Architecture.svg"
+  <img src="Imagenes/Architecture.svg"
        alt="Architecture System"
        width="900"
        style="max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0px 8px 24px rgba(37, 99, 235, 0.18);">
