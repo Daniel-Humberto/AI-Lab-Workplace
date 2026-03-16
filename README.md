@@ -38,3 +38,148 @@ Orquestado mediante un archivo `docker-compose.yml` y gestionada por una herrami
 
 
 ---
+
+
+## Estructura del proyecto
+
+```
+agent-ai-ops/
+├── agentai-ops.sh          # CLI de infraestructura — punto de entrada único
+├── docker-compose.yml      # Definición de orquestación de 15 servicios
+├── .env                    # Variables de entorno y secretos (ignorado por git)
+│
+├── monitoring/
+│   └── prometheus.yml      # Configuración de scrape para todos los exporters
+│
+├── n8n-data/               # Flujos de trabajo, credenciales y PDFs de n8n
+├── ollama-data/            # Pesos de los modelos LLM descargados
+├── qdrant-data/            # Almacenamiento del índice vectorial
+├── postgres-data/          # Archivos de datos de PostgreSQL
+├── redis-data/             # Persistencia AOF de Redis
+├── grafana-data/           # Dashboards y plugins de Grafana (volumen nombrado)
+└── prometheus-data/        # TSDB de Prometheus (volumen nombrado)
+```
+
+
+---
+
+
+## CLI
+
+<p align="center">
+  <img src="Imagenes/Menu.png"
+       alt="Menú CLI"
+       width="900"
+       style="max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0px 8px 24px rgba(37, 99, 235, 0.18);">
+  
+</p>
+
+
+---
+
+
+## Operations CLI
+
+Todo el ciclo de vida de la infraestructura se gestiona a través de un único script con menú interactivo TUI o comandos directos.
+
+```bash
+# Menú interactivo (recomendado)
+bash agentai-ops.sh
+
+# Comandos directos
+bash agentai-ops.sh instalar     # Instalación completa (toolkit NVIDIA, directorios, configuración)
+bash agentai-ops.sh levantar     # Iniciar todos los servicios
+bash agentai-ops.sh bajar        # Detener todos los servicios
+bash agentai-ops.sh reiniciar    # Reiniciar (todos o un servicio específico)
+bash agentai-ops.sh estado       # Panel de estado del sistema
+bash agentai-ops.sh logs         # Transmitir logs (todos o un servicio específico)
+bash agentai-ops.sh llms         # Descargar modelos LLM en Ollama
+bash agentai-ops.sh verificar    # Ejecutar health checks en todos los servicios
+bash agentai-ops.sh endpoints    # Mostrar todas las URLs de los servicios
+bash agentai-ops.sh actualizar   # Descargar las últimas imágenes Docker
+bash agentai-ops.sh backup       # Archivar todos los volúmenes de datos
+bash agentai-ops.sh seguridad    # Configurar firewall UFW + ejecutar auditoría Lynis
+bash agentai-ops.sh destruir     # Eliminar contenedores y volúmenes
+bash agentai-ops.sh purge        # ⚠️ Borrado total (irreversible)
+```
+
+
+---
+
+
+## Instalacion y Configuracion
+
+
+### Requisitos previos
+
+- Host Linux (Ubuntu 22.04+ recomendado)
+- GPU NVIDIA con drivers instalados
+- Docker Engine + Docker Compose v2
+- `curl`, `bash` ≥ 5.0
+
+
+### 1 — Clonar y configurar
+
+```bash
+git clone https://github.com/Daniel-Humberto/AI-Lab-Workplace.git
+cd agent-ai-ops
+cp .env.example .env
+# Editar .env — definir contraseñas e IDs de dispositivo GPU
+```
+
+
+### 2 — Instalar y Levantar Workplace
+
+```bash
+# Herramienta de Instalación y Configuracion Automatizada Completa
+./agentai-ops.sh
+```
+
+
+### 3 — Acceso a los servicios
+
+<p>
+  <a href="http://localhost:8080/containers/"><img src="https://img.shields.io/badge/cAdvisor-:8080-db61a2?style=flat-square&logo=docker&logoColor=white"/></a>
+  <a href="http://localhost:9090/query"><img src="https://img.shields.io/badge/Prometheus-:9090-e6522c?style=flat-square&logo=prometheus&logoColor=white"/></a>
+  <a href="http://localhost:5050"><img src="https://img.shields.io/badge/pgAdmin_4-:5050-58a6ff?style=flat-square&logo=postgresql&logoColor=white"/></a>
+  <a href="http://localhost:5540"><img src="https://img.shields.io/badge/RedisInsight-:5540-f85149?style=flat-square&logo=redis&logoColor=white"/></a>
+  <a href="http://localhost:6333/dashboard"><img src="https://img.shields.io/badge/Qdrant-:6333-3fb950?style=flat-square&logo=databricks&logoColor=white"/></a>
+  <a href="http://localhost:5678"><img src="https://img.shields.io/badge/N8N-:5678-a371f7?style=flat-square&logo=n8n&logoColor=white"/></a>
+  <a href="http://localhost:3000"><img src="https://img.shields.io/badge/Grafana-:3000-f1e05a?style=flat-square&logo=grafana&logoColor=black"/></a>
+  <a href="http://localhost:8088"><img src="https://img.shields.io/badge/Open_WebUI-:8088-4dbce9?style=flat-square&logo=openai&logoColor=white"/></a>
+</p>
+
+
+---
+
+
+## Seguridad
+
+La plataforma fue diseñada priorizando un enfoque seguro a nivel de red y host.
+
+**Aislamiento de red** — Los servicios están segregados en dos redes Docker. Los servicios internos (bases de datos, exporters) quedan aislados en `agent-ai-network-internal` con `internal: true`, bloqueando cualquier acceso externo directo. Solo los servicios con interfaz de usuario se conectan a la red externa.
+
+**Firewall UFW** — La configuración automatizada del firewall restringe todos los puertos de servicio a la subred LAN local (`192.168.1.0/24`). El tráfico externo queda denegado por defecto.
+
+**Auditoría con Lynis** — El comando `seguridad` instala y ejecuta [Lynis](https://cisofy.com/lynis/), una herramienta de hardening y auditoría de cumplimiento, generando un informe completo de seguridad del host en `/var/log/lynis-report.dat`.
+
+**Secretos en variables de entorno** — Todas las contraseñas y credenciales se almacenan exclusivamente en `.env` (nunca commiteado) y se inyectan en tiempo de ejecución del contenedor. Ninguna credencial aparece en las capas de imagen ni en las definiciones de Compose.
+
+
+---
+
+
+## 📝 Licencia
+
+Este proyecto está licenciado bajo la [Licencia GNU GPL v3](LICENSE).
+
+
+---
+
+
+<p align="center">
+  <sub>© 2026 Ing. Daniel Humberto Reyes Rocha.</sub>
+</p>
+
+
+---
