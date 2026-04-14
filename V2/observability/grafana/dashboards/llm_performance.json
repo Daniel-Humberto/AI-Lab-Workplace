@@ -1,0 +1,31 @@
+{
+  "uid": "llm-perf",
+  "title": "LLM Performance Analytics",
+  "timezone": "browser",
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Ollama Service Status",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 },
+      "targets": [{"expr": "up{job='ollama'}", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }],
+      "options": {"colorMode": "background"},
+      "fieldConfig": { "defaults": { "mappings": [{"type": "value", "options": {"1": {"text": "UP", "color": "green"}, "0": {"text": "DOWN", "color": "red"}}}] } }
+    },
+    {
+      "type": "stat",
+      "title": "Qdrant Service Status",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+      "targets": [{"expr": "up{job='qdrant'}", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }],
+      "options": {"colorMode": "background"},
+      "fieldConfig": { "defaults": { "mappings": [{"type": "value", "options": {"1": {"text": "UP", "color": "green"}, "0": {"text": "DOWN", "color": "red"}}}] } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Agent Confidence Scores",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 6 },
+      "targets": [{"expr": "rate(agent_confidence_score_bucket[5m])", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }]
+    }
+  ]
+}

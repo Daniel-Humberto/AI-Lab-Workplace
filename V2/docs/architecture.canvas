@@ -1,0 +1,22 @@
+{
+	"nodes":[
+		{"id":"gateway","type":"text","text":"# FastAPI Gateway\nAPI Entrypoint","x":0,"y":0,"width":250,"height":100,"color":"3"},
+		{"id":"ollama","type":"text","text":"# Ollama\nLLM Service","x":400,"y":-150,"width":250,"height":100,"color":"4"},
+		{"id":"qdrant","type":"text","text":"# Qdrant\nVector Database","x":400,"y":0,"width":250,"height":100,"color":"4"},
+		{"id":"redis","type":"text","text":"# Redis\nCache / Message Broker","x":400,"y":150,"width":250,"height":100,"color":"4"},
+		{"id":"n8n","type":"text","text":"# n8n\nWorkflow Automation","x":0,"y":-200,"width":250,"height":100,"color":"2"},
+		{"id":"observability","type":"group","label":"Observability Stack","x":-450,"y":-100,"width":350,"height":450,"color":"1"},
+		{"id":"grafana","type":"text","text":"# Grafana\nDashboards","x":-400,"y":-50,"width":250,"height":80},
+		{"id":"prometheus","type":"text","text":"# Prometheus\nMetrics","x":-400,"y":50,"width":250,"height":80},
+		{"id":"alertmanager","type":"text","text":"# Alertmanager","x":-400,"y":150,"width":250,"height":80},
+		{"id":"exporters","type":"text","text":"# Exporters\nNode / cAdvisor / Langsmith","x":-400,"y":250,"width":250,"height":80}
+	],
+	"edges":[
+		{"id":"edge-1","fromNode":"gateway","fromSide":"right","toNode":"ollama","toSide":"left"},
+		{"id":"edge-2","fromNode":"gateway","fromSide":"right","toNode":"qdrant","toSide":"left"},
+		{"id":"edge-3","fromNode":"gateway","fromSide":"right","toNode":"redis","toSide":"left"},
+		{"id":"edge-4","fromNode":"prometheus","fromSide":"top","toNode":"grafana","toSide":"bottom"},
+		{"id":"edge-5","fromNode":"prometheus","fromSide":"bottom","toNode":"alertmanager","toSide":"top"},
+		{"id":"edge-6","fromNode":"exporters","fromSide":"top","toNode":"prometheus","toSide":"bottom"}
+	]
+}

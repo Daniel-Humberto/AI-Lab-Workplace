@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+structlog
+langgraph
+langchain-core
+langchain-ollama
+qdrant-client
+tenacity
+pytest
+pytest-asyncio

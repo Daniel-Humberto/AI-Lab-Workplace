@@ -1,0 +1,111 @@
+openapi: 3.1.0
+info:
+  title: Neuralytics OS Gateway API
+  description: API Gateway for Multi-Agent Operations and AIOps automations.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Local development gateway
+paths:
+  /api/v1/agent/query:
+    post:
+      summary: Query the LangGraph Agent pipeline
+      operationId: queryAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: User query to process
+                session_id:
+                  type: string
+                  description: Optional chat session ID for stateful routing
+      responses:
+        '200':
+          description: Agent pipeline executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                  trace_id:
+                    type: string
+                  confidence:
+                    type: number
+                  retrieved_docs_count:
+                    type: integer
+                  token_usage:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  latency_ms:
+                    type: integer
+  /api/v1/ingest/documents:
+    post:
+      summary: Ingest documents to Qdrant vector store
+      operationId: ingestDocuments
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                collection:
+                  type: string
+                  default: "neuralytics-logs"
+      responses:
+        '200':
+          description: Ingestion status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ingested_count:
+                    type: integer
+                  failed_count:
+                    type: integer
+                  collection:
+                    type: string
+  /webhooks/n8n/alert:
+    post:
+      summary: Receive Prometheus Alertmanager payload via N8N
+      operationId: receiveAlert
+      responses:
+        '202':
+          description: Alert Accepted
+
+  /health:
+    get:
+      summary: Gateway healthcheck
+      responses:
+        '200':
+          description: OK
+  /ready:
+    get:
+      summary: Readiness probe checking Ollama and Qdrant backend
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: External dependencies unavailable
+  /metrics:
+    get:
+      summary: Expose Prometheus metrics
+      responses:
+        '200':
+          description: Prometheus formatted text metrics

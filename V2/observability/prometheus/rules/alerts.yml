@@ -1,0 +1,42 @@
+groups:
+  - name: neuralytics_alerts
+    rules:
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API Latency on FastAPI"
+          
+      - alert: AgentLowConfidence
+        expr: rate(agent_confidence_score_bucket{le="0.5"}[5m]) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent pipeline confidence dropping"
+
+      - alert: ContainerMemoryHigh
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.85
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container Memory limits near 85%"
+
+      - alert: OllamaDown
+        expr: up{job="ollama"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ollama instance unreachable"
+
+      - alert: QdrantCollectionEmpty
+        expr: qdrant_documents_total == 0
+        for: 1m
+        labels:
+          severity: info
+        annotations:
+          summary: "Qdrant collection empty"

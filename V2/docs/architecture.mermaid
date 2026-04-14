@@ -1,0 +1,57 @@
+flowchart TD
+    %% Subsystem: API Gateway
+    subgraph Gateway ["API Layer (FastAPI)"]
+        API[FastAPI Gateway :8000]
+        WS[WebSocket Stream]
+        API --- WS
+    end
+
+    %% Subsystem: Inference & State
+    subgraph Data ["Data & Inference Layer"]
+        QDRANT[(Qdrant Vector DB :6333)]
+        OLLAMA[Ollama LLM :11434]
+        REDIS[(Redis State :6379)]
+    end
+
+    %% Subsystem: LangGraph Agents
+    subgraph Orchestration ["Agent Layer (LangGraph)"]
+        SUPERVISOR(Supervisor Agent)
+        RETRIEVER(Retriever Agent)
+        ANALYZER(Analyzer Agent)
+        RESPONDER(Responder Agent)
+        SUPERVISOR -->|Route| RETRIEVER
+        SUPERVISOR -->|Route| ANALYZER
+        SUPERVISOR -->|Route| RESPONDER
+        RETRIEVER -->|Embeddings/Search| QDRANT
+        ANALYZER -->|Inference| OLLAMA
+        RESPONDER -->|Tokens| OLLAMA
+    end
+
+    %% Subsystem: Automation & Observability
+    subgraph Observability ["Observability & Automation Layer"]
+        N8N[N8N Automations :5678]
+        LANGSMITH[LangSmith :8001]
+        PROM[Prometheus :9090]
+        GRAFANA[Grafana :3000]
+        CADVISOR[Cadvisor :8080]
+        ALERTMANAGER[AlertManager:9093]
+    end
+
+    %% Communication Flow API <-> Agents
+    API ==>|Async Request| SUPERVISOR
+    SUPERVISOR -.->|Save State| REDIS
+    API -.->|Trace Data| LANGSMITH
+    SUPERVISOR -.->|Trace Data| LANGSMITH
+
+    %% Automated Scrape & Alert Flows
+    PROM -->|Scrape metrics| API
+    PROM -->|Scrape metrics| QDRANT
+    PROM -->|Scrape metrics| CADVISOR
+    GRAFANA -->|Query PromQL| PROM
+    PROM -->|Fires Alerts| ALERTMANAGER
+    ALERTMANAGER -->|Webhook| N8N
+    N8N -->|Trigger Task POST| API
+
+    %% Health definitions
+    classDef healthy fill:#d4edda,stroke:#28a745,color:#155724;
+    class API,QDRANT,OLLAMA,N8N,PROM healthy;

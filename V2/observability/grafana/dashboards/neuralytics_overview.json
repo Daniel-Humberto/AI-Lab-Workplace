@@ -1,0 +1,37 @@
+{
+  "uid": "neuralytics-overview",
+  "title": "Neuralytics Overview",
+  "timezone": "browser",
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "API Status",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "targets": [{"expr": "up{job='fastapi-gateway'}", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }],
+      "options": {"colorMode": "value"},
+      "fieldConfig": { "defaults": { "mappings": [{"type": "value", "options": {"1": {"text": "Healthy", "color": "green"}, "0": {"text": "Down", "color": "red"}}}] } }
+    },
+    {
+      "type": "stat",
+      "title": "Total API Requests",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "targets": [{"expr": "api_requests_total", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }]
+    },
+    {
+      "type": "stat",
+      "title": "Active Alerts",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "targets": [{"expr": "ALERTS{alertstate='firing'}", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }],
+      "options": {"colorMode": "background"},
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } }
+    },
+    {
+      "type": "timeseries",
+      "title": "API Request Rate (Requests/sec)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 6 },
+      "targets": [{"expr": "rate(api_requests_total[5m])", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }]
+    }
+  ]
+}

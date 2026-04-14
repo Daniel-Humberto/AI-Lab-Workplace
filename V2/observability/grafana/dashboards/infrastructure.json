@@ -1,0 +1,27 @@
+{
+  "uid": "infra-dash",
+  "title": "Infrastructure Metrics",
+  "timezone": "browser",
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Host CPU Runtime",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{"expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Host Memory Usage (%)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [{"expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Container Memory (bytes)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "targets": [{"expr": "container_memory_usage_bytes{name!='', image!=''}", "refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"} }]
+    }
+  ]
+}
